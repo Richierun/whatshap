@@ -237,53 +237,53 @@ class ReadList:
             )
 
 
-def setup_pedigree(ped_path: str, samples: Sequence[str]) -> Tuple[Sequence[Trio], Set[str]]:
-    """
-    Read in PED file to set up list of relationships.
+# def setup_pedigree(ped_path: str, samples: Sequence[str]) -> Tuple[Sequence[Trio], Set[str]]:
+#     """
+#     Read in PED file to set up list of relationships.
 
-    Return a pair (trios, pedigree_samples), where trios is a list of Trio
-    objects and pedigree_samples is the set of all samples that are mentioned
-    in the PED file (as individual, mother or father).
+#     Return a pair (trios, pedigree_samples), where trios is a list of Trio
+#     objects and pedigree_samples is the set of all samples that are mentioned
+#     in the PED file (as individual, mother or father).
 
-    ped_path -- path to PED file
-    samples -- samples to be phased
-    """
-    trios = []
-    pedigree_samples = set()
-    for trio in PedReader(ped_path):
-        if trio.child is None or trio.mother is None or trio.father is None:
-            warn_once(
-                logger,
-                "Relationship %s/%s/%s ignored because at least one of the individuals is unknown.",
-                trio.child,
-                trio.mother,
-                trio.father,
-            )
-            continue
-        # if at least one individual is not in samples, skip trio
-        if (
-            (trio.mother not in samples)
-            or (trio.father not in samples)
-            or (trio.child not in samples)
-        ):
-            # happens in case --ped and --samples are used
-            warn_once(
-                logger,
-                "Relationship %s/%s/%s ignored because at least one of the "
-                "individuals was not among the samples to be phased "
-                "(either not in the input VCF or restricted by --sample).",
-                trio.child,
-                trio.mother,
-                trio.father,
-            )
-            continue
+#     ped_path -- path to PED file
+#     samples -- samples to be phased
+#     """
+#     trios = []
+#     pedigree_samples = set()
+#     for trio in PedReader(ped_path):
+#         if trio.child is None or trio.mother is None or trio.father is None:
+#             warn_once(
+#                 logger,
+#                 "Relationship %s/%s/%s ignored because at least one of the individuals is unknown.",
+#                 trio.child,
+#                 trio.mother,
+#                 trio.father,
+#             )
+#             continue
+#         # if at least one individual is not in samples, skip trio
+#         if (
+#             (trio.mother not in samples)
+#             or (trio.father not in samples)
+#             or (trio.child not in samples)
+#         ):
+#             # happens in case --ped and --samples are used
+#             warn_once(
+#                 logger,
+#                 "Relationship %s/%s/%s ignored because at least one of the "
+#                 "individuals was not among the samples to be phased "
+#                 "(either not in the input VCF or restricted by --sample).",
+#                 trio.child,
+#                 trio.mother,
+#                 trio.father,
+#             )
+#             continue
 
-        trios.append(trio)
-        pedigree_samples.add(trio.child)
-        pedigree_samples.add(trio.father)
-        pedigree_samples.add(trio.mother)
+#         trios.append(trio)
+#         pedigree_samples.add(trio.child)
+#         pedigree_samples.add(trio.father)
+#         pedigree_samples.add(trio.mother)
 
-    return trios, pedigree_samples
+#     return trios, pedigree_samples
 
 
 def run_whatshap(
@@ -381,6 +381,14 @@ def run_whatshap(
 
     with ExitStack() as stack:
         logger.debug("Creating PhasedInputReader")
+        # phase_input_files: ['chr20.vcf', 'calls2ref.bam']
+        # reference: /home/r13021/data/callvariant_data/ONT_DV/GRCh38_no_alt_analysis_set.fasta
+        # numeric_sample_ids: {}
+        # ignore_read_groups: True
+        # mapping_quality: 20
+        # only_snvs: False
+        # use_supplementary: False
+        # supplementary_distance_threshold: 100000
         phased_input_reader = stack.enter_context(
             PhasedInputReader(
                 phase_input_files,
@@ -388,8 +396,8 @@ def run_whatshap(
                 numeric_sample_ids,
                 ignore_read_groups,
                 mapq_threshold=mapping_quality,
-                only_snvs=only_snvs,
-                use_supplementary=use_supplementary,
+                only_snvs=False,
+                use_supplementary=False,
                 supplementary_distance_threshold=supplementary_distance_threshold,
             )
         )
@@ -432,17 +440,20 @@ def run_whatshap(
         assert samples is not None
         raise_if_any_sample_not_in_vcf(vcf_reader, samples)
 
+        # ped:  None
+        # genmap:  None
+        # recombinate 1.26
         recombination_cost_computer = make_recombination_cost_computer(ped, genmap, recombrate)
 
         families, family_trios = setup_families(samples, ped, max_coverage)
         del samples
-        for trios in family_trios.values():
-            for trio in trios:
-                # Ensure that all mentioned individuals have a numeric id
-                if trio.child is not None:
-                    _ = numeric_sample_ids[trio.child]
+        # for trios in family_trios.values():
+        #     for trio in trios:
+        #         # Ensure that all mentioned individuals have a numeric id
+        #         if trio.child is not None:
+        #             _ = numeric_sample_ids[trio.child]
 
-        read_list = None
+        # read_list = None
 
         with timers("parse_phasing_vcfs"):
             # TODO should this be done in PhasedInputReader.__init__?
@@ -451,8 +462,11 @@ def run_whatshap(
         superreads: Dict[str, ReadSet]
         components: Dict
         included_chromosomes = ChromosomeFilter(chromosomes, excluded_chromosomes)
+        # 這行的意思是，
         for variant_table in timers.iterate("parse_vcf", vcf_reader):
             chromosome = variant_table.chromosome
+            
+            # 如果這條染色體不在 included_chromosomes 中，那麼直接寫到結果，並把時間加在 write_vcf 上
             if chromosome not in included_chromosomes:
                 logger.info(
                     "Leaving chromosome %r unchanged "
@@ -575,6 +589,7 @@ def run_whatshap(
                             accessible_positions,
                         )
                     superreads_list, transmission_vector = dp_table.get_super_reads()
+                    
                     logger.debug("%s cost: %d", problem_name, dp_table.get_optimal_cost())
 
                 with timers("components"):
@@ -699,15 +714,16 @@ def setup_families(
 
     # Keep track of connected components (aka families) in the pedigree
     family_finder = ComponentFinder(samples)
-    if ped_path is not None:
-        all_trios, pedigree_samples = setup_pedigree(ped_path, samples)
-        for trio in all_trios:
-            if trio.father is not None:
-                family_finder.merge(trio.father, trio.child)
-            if trio.mother is not None:
-                family_finder.merge(trio.mother, trio.child)
-    else:
-        all_trios = []
+    # ped_path is None, so never executes
+    # if ped_path is not None:
+    #     all_trios, pedigree_samples = setup_pedigree(ped_path, samples)
+    #     for trio in all_trios:
+    #         if trio.father is not None:
+    #             family_finder.merge(trio.father, trio.child)
+    #         if trio.mother is not None:
+    #             family_finder.merge(trio.mother, trio.child)
+    # else:
+    all_trios = []
 
     # map family representatives to lists of family members
     families: Mapping[str, MutableSequence[str]] = defaultdict(list)
@@ -732,22 +748,25 @@ def setup_families(
             "The maximum coverage is too high! "
             "WhatsHap may take a long time to finish and require a huge amount of memory."
         )
+    # families: defaultdict(<class 'list'>, {'SAMPLE': ['SAMPLE']})
+    # family_trios: defaultdict(<class 'list'>, {})
     return families, family_trios
 
 
 def make_recombination_cost_computer(
     ped: Optional[str], genmap: Optional[str], recombrate: float
 ) -> RecombinationCostComputer:
-    if ped and genmap:
-        logger.info("Using region-specific recombination rates from genetic map %s.", genmap)
-        try:
-            return GeneticMapRecombinationCostComputer(genmap)
-        except ParseError as e:
-            raise CommandLineError(e)
-    else:
-        if ped:
-            logger.info("Using uniform recombination rate of %g cM/Mb.", recombrate)
-        return UniformRecombinationCostComputer(recombrate)
+    # ped is None; genmap is None, too
+    # if ped and genmap:
+    #     logger.info("Using region-specific recombination rates from genetic map %s.", genmap)
+    #     try:
+    #         return GeneticMapRecombinationCostComputer(genmap)
+    #     except ParseError as e:
+    #         raise CommandLineError(e)
+    # else:
+    #     if ped:
+    #         logger.info("Using uniform recombination rate of %g cM/Mb.", recombrate)
+    return UniformRecombinationCostComputer(recombrate)
 
 
 def find_phaseable_variants(
@@ -871,8 +890,9 @@ def create_pedigree(
         pedigree.add_individual(
             sample, phasable_variant_table.genotypes_of(sample), genotype_likelihoods
         )
-    for trio in trios:
-        pedigree.add_relationship(father_id=trio.father, mother_id=trio.mother, child_id=trio.child)
+    # skip, since trios = []
+    # for trio in trios:
+    #     pedigree.add_relationship(father_id=trio.father, mother_id=trio.mother, child_id=trio.child)
     return pedigree
 
 
