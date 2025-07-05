@@ -355,9 +355,10 @@ def run_whatshap(
     default_gq -- genotype likelihood to be used when GL or PL not available
     write_command_line_header -- whether to add a ##commandline header to the output VCF
     """
-    print("hihihi")
-    if algorithm == "hapchat" and ped is not None:
-        raise CommandLineError("The hapchat algorithm cannot do pedigree phasing")
+    
+    # ped is None, so never executes
+    # if algorithm == "hapchat" and ped is not None:
+    #     raise CommandLineError("The hapchat algorithm cannot do pedigree phasing")
     if samples is None:
         samples = []
     timers = StageTimer()
@@ -431,8 +432,9 @@ def run_whatshap(
             samples = vcf_reader.samples
 
         # if --use-ped-samples is set, use only samples from PED file
-        if ped is not None and use_ped_samples:
-            samples = PedReader(ped).samples()
+        # ped is None, so never executes
+        # if ped is not None and use_ped_samples:
+        #     samples = PedReader(ped).samples()
 
         assert samples is not None
         raise_if_any_sample_not_in_vcf(vcf_reader, samples)
@@ -448,14 +450,17 @@ def run_whatshap(
                     _ = numeric_sample_ids[trio.child]
 
         read_list = None
-        if read_list_filename:
-            read_list = stack.enter_context(ReadList(read_list_filename))
-            if algorithm == "hapchat":
-                logger.warning(
-                    "On which haplotype a read occurs in the inferred solution is not yet "
-                    "implemented in hapchat, and so the corresponding column in the "
-                    "read list file contains no information about this"
-                )
+
+        # "Write reads that have been used for phasing to FILE."
+        # read_list_filename is None
+        # if read_list_filename:
+        #     read_list = stack.enter_context(ReadList(read_list_filename))
+        #     if algorithm == "hapchat":
+        #         logger.warning(
+        #             "On which haplotype a read occurs in the inferred solution is not yet "
+        #             "implemented in hapchat, and so the corresponding column in the "
+        #             "read list file contains no information about this"
+        #         )
 
         with timers("parse_phasing_vcfs"):
             # TODO should this be done in PhasedInputReader.__init__?
@@ -485,16 +490,17 @@ def run_whatshap(
             # TODO: Can the body of this loop be factored out into a phase_family function?
             for representative_sample, family in sorted(families.items()):
                 logger.info("")
+                # we only have one family
                 if len(family) == 1:
                     logger.info(
                         "# Working on contig %s in individual %s", chromosome, representative_sample
                     )
-                else:
-                    logger.info(
-                        "# Working on contig %s in family individuals %s",
-                        chromosome,
-                        ",".join(family),
-                    )
+                # else:
+                #     logger.info(
+                #         "# Working on contig %s in family individuals %s",
+                #         chromosome,
+                #         ",".join(family),
+                #     )
                 max_coverage_per_sample = max(1, max_coverage // len(family))
                 logger.debug("Using maximum coverage per sample of %dX", max_coverage_per_sample)
                 trios = family_trios[representative_sample]
@@ -532,12 +538,14 @@ def run_whatshap(
                             )
 
                     readsets[sample] = selected_reads
-                    if len(family) == 1 and not distrust_genotypes:
-                        # When having a pedigree (len(family) > 1), blocks are also merged after
-                        # phasing based on the pedigree information and these statistics are not
-                        # so useful. When distrust_genotypes, genotypes can change during phasing
-                        # and so can the block structure. So don't print these stats in those cases
-                        log_best_case_phasing_info(readset, selected_reads)
+                    
+                    # we use distrust_genotypes
+                    # if len(family) == 1 and not distrust_genotypes:
+                    #     # When having a pedigree (len(family) > 1), blocks are also merged after
+                    #     # phasing based on the pedigree information and these statistics are not
+                    #     # so useful. When distrust_genotypes, genotypes can change during phasing
+                    #     # and so can the block structure. So don't print these stats in those cases
+                    #     log_best_case_phasing_info(readset, selected_reads)
 
                 all_reads = merge_readsets(readsets)
 
@@ -548,17 +556,19 @@ def run_whatshap(
                     "read in at least one individual after read selection: %d",
                     len(accessible_positions),
                 )
-                if len(family) > 1 and genetic_haplotyping:
-                    # In case of genetic haplotyping, also retain all positions homozygous
-                    # in at least one individual (because they might be phased based on genotypes)
-                    accessible_positions = sorted(
-                        set(accessible_positions).union(homozygous_positions)
-                    )
-                    logger.info(
-                        "Variants either covered by phase-informative read or homozygous "
-                        "in at least one individual: %d",
-                        len(accessible_positions),
-                    )
+                
+                # again, only one family in my limitation
+                # if len(family) > 1 and genetic_haplotyping:
+                #     # In case of genetic haplotyping, also retain all positions homozygous
+                #     # in at least one individual (because they might be phased based on genotypes)
+                #     accessible_positions = sorted(
+                #         set(accessible_positions).union(homozygous_positions)
+                #     )
+                #     logger.info(
+                #         "Variants either covered by phase-informative read or homozygous "
+                #         "in at least one individual: %d",
+                #         len(accessible_positions),
+                #     )
 
                 # Keep only accessible positions
                 phasable_variant_table.subset_rows_by_position(accessible_positions)
@@ -624,18 +634,20 @@ def run_whatshap(
                     )
                     log_component_stats(overall_components, len(accessible_positions))
 
-                if recombination_list_filename:
-                    assert transmission_vector is not None
-                    n_recombinations = write_recombination_list(
-                        recombination_list_filename,
-                        chromosome,
-                        accessible_positions,
-                        overall_components,
-                        recombination_costs,
-                        transmission_vector,
-                        trios,
-                    )
-                    logger.info("Total no. of detected recombination events: %d", n_recombinations)
+                # "Write putative recombination events to FILE."
+                # recombination_list_filename is None, so never executes
+                # if recombination_list_filename:
+                #     assert transmission_vector is not None
+                #     n_recombinations = write_recombination_list(
+                #         recombination_list_filename,
+                #         chromosome,
+                #         accessible_positions,
+                #         overall_components,
+                #         recombination_costs,
+                #         transmission_vector,
+                #         trios,
+                #     )
+                #     logger.info("Total no. of detected recombination events: %d", n_recombinations)
 
                 # Superreads in superreads_list are in the same order as individuals were added to the pedigree
                 for sample, sample_superreads in zip(family, superreads_list):
@@ -649,13 +661,14 @@ def run_whatshap(
                     # identical for all samples
                     components[sample] = overall_components
 
-                if read_list:
-                    read_list.write(
-                        all_reads,
-                        dp_table.get_optimal_partitioning(),
-                        components,
-                        numeric_sample_ids,
-                    )
+                # read_list is None, so never executes
+                # if read_list:
+                #     read_list.write(
+                #         all_reads,
+                #         dp_table.get_optimal_partitioning(),
+                #         components,
+                #         numeric_sample_ids,
+                #     )
 
             with timers("write_vcf"):
                 logger.debug("Writing phasing result to output VCF")
@@ -664,9 +677,10 @@ def run_whatshap(
                     assert distrust_genotypes
                     logger.info("Changed %d genotypes while writing VCF", len(changed_genotypes))
 
-            if gtchange_list_filename:
-                logger.info("Writing list of changed genotypes to %r", gtchange_list_filename)
-                write_changed_genotypes(gtchange_list_filename, changed_genotypes)
+            # gtchange_list_filename is None, so never executes
+            # if gtchange_list_filename:
+            #     logger.info("Writing list of changed genotypes to %r", gtchange_list_filename)
+            #     write_changed_genotypes(gtchange_list_filename, changed_genotypes)
 
             logger.debug("Chromosome %r finished", chromosome)
 
