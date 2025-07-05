@@ -355,7 +355,7 @@ def run_whatshap(
     default_gq -- genotype likelihood to be used when GL or PL not available
     write_command_line_header -- whether to add a ##commandline header to the output VCF
     """
-
+    print("hihihi")
     if algorithm == "hapchat" and ped is not None:
         raise CommandLineError("The hapchat algorithm cannot do pedigree phasing")
     if samples is None:
